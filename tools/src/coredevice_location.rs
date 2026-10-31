@@ -4,7 +4,7 @@ use idevice::{
     IdeviceService, RsdService, core_device::LocationServiceClient,
     core_device_proxy::CoreDeviceProxy, provider::IdeviceProvider, rsd::RsdHandshake,
 };
-use jkcli::{CollectedArguments, JkCommand};
+use jkcli::{CollectedArguments, JkArgument, JkCommand};
 
 pub fn register() -> JkCommand {
     JkCommand::new()
@@ -13,11 +13,22 @@ pub fn register() -> JkCommand {
             "available-scenarios",
             JkCommand::new().help("List the device's built-in location-simulation scenarios"),
         )
+        .with_subcommand(
+            "set",
+            JkCommand::new()
+                .help("Simulate a location; the device keeps it until cleared or restarted")
+                .with_argument(JkArgument::new().with_help("latitude").required(true))
+                .with_argument(JkArgument::new().with_help("longitude").required(true)),
+        )
+        .with_subcommand(
+            "clear",
+            JkCommand::new().help("Stop simulating the device's location"),
+        )
         .subcommand_required(true)
 }
 
 pub async fn main(arguments: &CollectedArguments, provider: Box<dyn IdeviceProvider>) {
-    let (sub_name, _sub_args) = arguments
+    let (sub_name, sub_args) = arguments
         .first_subcommand()
         .expect("no subcommand passed, pass -h for help");
 
@@ -47,6 +58,31 @@ pub async fn main(arguments: &CollectedArguments, provider: Box<dyn IdeviceProvi
                     println!("{} ({})", s.localized_name, s.name);
                 }
             }
+        }
+        "set" => {
+            let mut sub_args = sub_args.clone();
+            let latitude: f64 = sub_args
+                .next_argument::<String>()
+                .expect("no latitude passed")
+                .parse()
+                .expect("latitude is not a number");
+            let longitude: f64 = sub_args
+                .next_argument::<String>()
+                .expect("no longitude passed")
+                .parse()
+                .expect("longitude is not a number");
+            client
+                .set_simulated_location(latitude, longitude)
+                .await
+                .expect("setSimulatedLocation failed");
+            println!("Location set to {latitude}, {longitude}");
+        }
+        "clear" => {
+            client
+                .clear_simulated_location()
+                .await
+                .expect("clearSimulatedLocation failed");
+            println!("Location cleared");
         }
         _ => unreachable!(),
     }

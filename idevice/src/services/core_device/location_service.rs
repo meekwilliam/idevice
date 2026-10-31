@@ -59,4 +59,38 @@ impl<R: ReadWrite> LocationServiceClient<R> {
         plist::from_value(scenarios)
             .map_err(|_| CoreDeviceError::MalformedField("scenarios").into())
     }
+
+    /// Simulate the device's location at the given coordinates.
+    ///
+    /// The device keeps the simulated location after this client disconnects,
+    /// until [`Self::clear_simulated_location`] is called or the device restarts.
+    pub async fn set_simulated_location(
+        &mut self,
+        latitude: f64,
+        longitude: f64,
+    ) -> Result<(), IdeviceError> {
+        let mut input = plist::Dictionary::new();
+        input.insert("latitude".into(), latitude.into());
+        input.insert("longitude".into(), longitude.into());
+        self.inner
+            .invoke_with_plist_action(
+                obf!("com.apple.coredevice.feature.simulatelocation"),
+                input,
+                obf!("com.apple.coredevice.action.setsimulatedlocation"),
+            )
+            .await?;
+        Ok(())
+    }
+
+    /// Stop simulating the device's location.
+    pub async fn clear_simulated_location(&mut self) -> Result<(), IdeviceError> {
+        self.inner
+            .invoke_with_plist_action(
+                obf!("com.apple.coredevice.feature.simulatelocation"),
+                plist::Dictionary::new(),
+                obf!("com.apple.coredevice.action.clearsimulatedlocation"),
+            )
+            .await?;
+        Ok(())
+    }
 }
